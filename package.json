@@ -1,0 +1,41 @@
+{
+  "name": "hazeljs-code-migration",
+  "version": "1.0.0",
+  "description": "AI-Powered Code Migration Assistant using HazelJS",
+  "main": "src/index.ts",
+  "bin": {
+    "hazel-migrate": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest"
+  },
+  "keywords": ["hazeljs", "code-migration", "ai", "cli", "refactoring"],
+  "author": "HazelJS Team",
+  "license": "MIT",
+  "dependencies": {
+    "@hazeljs/agent": "^0.8.7",
+    "@hazeljs/core": "^0.8.7",
+    "@hazeljs/eval": "^0.8.7",
+    "@hazeljs/inspector": "^0.8.7",
+    "@hazeljs/prompts": "^0.8.7",
+    "@hazeljs/cli": "^0.8.7",
+    "@hazeljs/memory": "^0.8.7",
+    "reflect-metadata": "^0.2.2",
+    "commander": "^11.0.0",
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1",
+    "inquirer": "^8.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/inquirer": "^8.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
