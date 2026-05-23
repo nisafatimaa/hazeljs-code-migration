@@ -13,6 +13,7 @@ export interface MigrationResult {
   errors: string[];
   warnings: string[];
   error?: string;
+  reviewPrompt?: string;
 }
 
 export interface AnalysisResult {
@@ -20,6 +21,7 @@ export interface AnalysisResult {
   filesAnalyzed: number;
   linesOfCode: number;
   suggestedMigrations: SuggestedMigration[];
+  analysisPrompt?: string;
 }
 
 export interface SuggestedMigration {

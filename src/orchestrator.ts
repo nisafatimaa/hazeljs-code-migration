@@ -4,6 +4,11 @@ import * as path from 'path';
 import { MigrationOptions, MigrationResult, AnalysisResult } from './types';
 import { CodeAnalyzer } from './agents/code-analyzer';
 import { FrameworkTransformer } from './transformers/framework-transformer';
+import {
+  MIGRATION_ANALYSIS_PROMPT_KEY,
+  MIGRATION_REVIEW_PROMPT_KEY,
+  renderPrompt,
+} from './prompts';
 
 export class CodeMigrationOrchestrator {
   private analyzer: CodeAnalyzer;
@@ -15,6 +20,7 @@ export class CodeMigrationOrchestrator {
   }
 
   async migrate(options: MigrationOptions): Promise<MigrationResult> {
+    const normalizedOptions = this.normalizeOptions(options);
     const result: MigrationResult = {
       success: false,
       filesProcessed: 0,
@@ -24,8 +30,7 @@ export class CodeMigrationOrchestrator {
     };
 
     try {
-      // Get all files to process
-      const files = this.getFilesToProcess(options.sourcePath);
+      const files = this.getFilesToProcess(normalizedOptions.sourcePath);
       result.filesProcessed = files.length;
 
       if (files.length === 0) {
@@ -33,21 +38,20 @@ export class CodeMigrationOrchestrator {
         return result;
       }
 
-      // Process each file
       for (const file of files) {
         try {
           const content = fs.readFileSync(file, 'utf-8');
           const migratedContent = await this.transformer.transform(
             content,
-            options.sourceFramework,
-            options.targetFramework,
+            normalizedOptions.sourceFramework,
+            normalizedOptions.targetFramework,
             file
           );
 
           if (migratedContent !== content) {
-            if (!options.dryRun) {
-              const relativePath = path.relative(options.sourcePath, file);
-              const outputPath = path.join(options.outputPath, relativePath);
+            if (!normalizedOptions.dryRun) {
+              const relativePath = path.relative(normalizedOptions.sourcePath, file);
+              const outputPath = path.join(normalizedOptions.outputPath, relativePath);
               const outputDir = path.dirname(outputPath);
 
               // Create output directory if it doesn't exist
@@ -60,13 +64,24 @@ export class CodeMigrationOrchestrator {
             result.filesMigrated++;
           }
         } catch (error) {
-          result.errors.push(`Error processing ${file}: ${error}`);
+          result.errors.push(`Error processing ${file}: ${this.formatError(error)}`);
         }
       }
 
-      result.success = true;
+      if (result.filesMigrated === 0) {
+        result.warnings.push(
+          `No files changed for ${normalizedOptions.sourceFramework} to ${normalizedOptions.targetFramework}`
+        );
+      }
+
+      result.success = result.errors.length === 0;
+      result.reviewPrompt = renderPrompt(MIGRATION_REVIEW_PROMPT_KEY, {
+        targetFramework: normalizedOptions.targetFramework,
+        migratedFiles: result.filesMigrated,
+        warnings: result.warnings.join('\n'),
+      });
     } catch (error) {
-      result.error = `Migration failed: ${error}`;
+      result.error = `Migration failed: ${this.formatError(error)}`;
     }
 
     return result;
@@ -95,6 +110,11 @@ export class CodeMigrationOrchestrator {
 
       // Suggest migrations based on detected framework
       result.suggestedMigrations = this.getSuggestedMigrations(result.detectedFramework);
+      result.analysisPrompt = renderPrompt(MIGRATION_ANALYSIS_PROMPT_KEY, {
+        sourcePath,
+        detectedFramework: result.detectedFramework,
+        filesAnalyzed: result.filesAnalyzed,
+      });
     } catch (error) {
       console.error('Analysis failed:', error);
     }
@@ -134,6 +154,19 @@ export class CodeMigrationOrchestrator {
     }
 
     return files;
+  }
+
+  private normalizeOptions(options: MigrationOptions): MigrationOptions {
+    return {
+      ...options,
+      outputPath: options.outputPath || './migrated',
+      sourceFramework: options.sourceFramework.toLowerCase(),
+      targetFramework: options.targetFramework.toLowerCase(),
+    };
+  }
+
+  private formatError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getSuggestedMigrations(detectedFramework: string): any[] {

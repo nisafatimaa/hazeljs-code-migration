@@ -1,14 +1,83 @@
-#!/usr/bin/env node
-
 import 'reflect-metadata';
+import { Agent, Tool } from '@hazeljs/agent';
+import { MemoryService, InMemoryStore, MemoryCategory } from '@hazeljs/memory';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
 import * as fs from 'fs';
-import * as path from 'path';
 import { CodeMigrationOrchestrator } from './orchestrator';
 import { MigrationOptions } from './types';
+
+// Initialize HazelJS services
+const memoryStore = new InMemoryStore();
+const memoryService = new MemoryService(memoryStore);
+
+@Agent({
+  name: 'code-migration-agent',
+  description: 'AI-powered code migration agent that analyzes and transforms code between frameworks',
+  systemPrompt: 'You are an expert code migration assistant. Analyze codebases, detect frameworks, and transform code between different frameworks while preserving functionality.',
+  enableMemory: true,
+})
+class CodeMigrationAgent {
+  private orchestrator: CodeMigrationOrchestrator;
+
+  constructor() {
+    this.orchestrator = new CodeMigrationOrchestrator();
+  }
+
+  @Tool({
+    name: 'analyze_codebase',
+    description: 'Analyze a codebase to detect the framework and suggest migrations',
+  })
+  async analyzeCodebase(sourcePath: string) {
+    const result = await this.orchestrator.analyze(sourcePath);
+    
+    // Store analysis in memory using public API
+    await memoryService.save({
+      category: MemoryCategory.EPISODIC,
+      key: `analysis:${sourcePath}`,
+      value: {
+        sourcePath,
+        result,
+        timestamp: new Date(),
+      },
+      userId: 'cli-user',
+      confidence: 1.0,
+      source: 'explicit',
+      evidence: [],
+    });
+    
+    return result;
+  }
+
+  @Tool({
+    name: 'migrate_code',
+    description: 'Migrate code from one framework to another',
+  })
+  async migrateCode(options: MigrationOptions) {
+    const result = await this.orchestrator.migrate(options);
+    
+    // Store migration in memory using public API
+    await memoryService.save({
+      category: MemoryCategory.EPISODIC,
+      key: `migration:${options.sourcePath}:${options.targetFramework}`,
+      value: {
+        options,
+        result,
+        timestamp: new Date(),
+      },
+      userId: 'cli-user',
+      confidence: 1.0,
+      source: 'explicit',
+      evidence: [],
+    });
+    
+    return result;
+  }
+}
+
+const agent = new CodeMigrationAgent();
 
 const program = new Command();
 
@@ -56,6 +125,10 @@ async function runMigration(options: any) {
       sourceFramework: options.framework,
       dryRun: options.dryRun || false,
     };
+
+    if (!migrationOptions.outputPath) {
+      migrationOptions.outputPath = './migrated';
+    }
 
     if (!migrationOptions.sourcePath || !migrationOptions.targetFramework || !migrationOptions.sourceFramework) {
       spinner.stop();
@@ -109,8 +182,8 @@ async function runMigration(options: any) {
 
     spinner.text = 'Analyzing source code...';
 
-    const orchestrator = new CodeMigrationOrchestrator();
-    const result = await orchestrator.migrate(migrationOptions);
+    // Use HazelJS agent to perform migration
+    const result = await agent.migrateCode(migrationOptions);
 
     spinner.stop();
 
@@ -176,8 +249,8 @@ async function analyzeCodebase(options: any) {
       process.exit(1);
     }
 
-    const orchestrator = new CodeMigrationOrchestrator();
-    const analysis = await orchestrator.analyze(sourcePath);
+    // Use HazelJS agent to perform analysis
+    const analysis = await agent.analyzeCodebase(sourcePath);
 
     spinner.stop();
 
